@@ -7,6 +7,7 @@ contract Oracle {
         uint id;
         bytes32 attributeName;
         mapping(address => bytes32) attributeValues;
+        uint numVotes;
     }
     event RequestEvent(uint id, bytes32 name);
     event ResponseEvent(uint id, bytes32 value);
@@ -49,8 +50,9 @@ contract Oracle {
     function updateRequest(uint _id, bytes32 _valueRetrieved) public {
         emit DebugEvent("[DEBUG] updateRequest() called");
         for (uint i = 0; i < oracleNodes.length; i++) {
-            if (oracleNodes[i] == msg.sender) {
+            if (oracleNodes[i] == msg.sender && requests[_id].attributeValues[msg.sender] == 0) {
                 requests[_id].attributeValues[msg.sender] = _valueRetrieved;
+                requests[_id].numVotes++;
                 emit DebugEvent("[DEBUG] request updated");
                 createResponse(_id);
                 break;
@@ -58,12 +60,14 @@ contract Oracle {
         }
     }
 
-    function createResponse(uint _id) private {
+    function createResponse(uint _id) public {
         emit DebugEvent("[DEBUG] createResponse() called");
-        bytes32[] memory values = new bytes32[](oracleNodes.length);
+        bytes32[] memory values = new bytes32[](requests[_id].numVotes);
+        uint valuesArrIndex = 0;
         for (uint i = 0; i < oracleNodes.length; i++) {
             if (requests[_id].attributeValues[oracleNodes[i]] != 0) {
-                values[i] = requests[_id].attributeValues[oracleNodes[i]];
+                values[valuesArrIndex] = requests[_id].attributeValues[oracleNodes[i]];
+                valuesArrIndex++;
             }
         }
         
@@ -86,7 +90,7 @@ contract Oracle {
             }
         }
 
-        uint quorum = (oracleNodes.length - 1) / 2 + 1;
+        uint quorum = (requests[_id].numVotes - 1) / 3 + 1;
         if (maxCount >= quorum && absMode == 1) {
             emit ResponseEvent(_id, mode);
         }
